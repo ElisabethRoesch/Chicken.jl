@@ -1,81 +1,46 @@
 
-using DifferentialEquations, StatsBase, Plots, Optim, Dates, DiffEqParamEstim, Flux, DiffEqFlux, Statistics, LinearAlgebra, OrdinaryDiffEq
+using JLD, DifferentialEquations, StatsBase, Plots, Optim, Dates, DiffEqParamEstim, Flux, DiffEqFlux, Statistics, LinearAlgebra, OrdinaryDiffEq
 using BSON: @save, @load
+include("../src/tools.jl")
+
 datasize = 35
 alpha, tspan, solver = 5.0,(0,2.0),Tsit5()
 t = range(tspan[1], tspan[2], length = datasize)
-function run_pfsuper_one_u0(u0)
-    x0 = [u0]
-    function pfsuper(dx, x, p, t)
-        dx[1] =alpha*x[1]-x[1]*x[1]*x[1]
-    end
-    prob = ODEProblem(pfsuper, x0 ,tspan)
-    obs = Array(solve(prob, solver,saveat=t))
-    return obs[1,:]
-end
-function run_pfsuper_multi_u0(u0s)
-    obs =[]
-    for i in u0s
-        push!(obs,run_pfsuper_one_u0(i))
-    end
-    obs
-end
+
 
 train_u0s = [-2.,-1.,0.,1.0,2.0]
-ode_data = run_pfsuper_multi_u0(train_u0s)
-plot(Array(range(1,stop = datasize)),ode_data[1])
-plot!(Array(range(1,stop = datasize)),ode_data[2])
-plot!(Array(range(1,stop = datasize)),ode_data[3])
-plot!(Array(range(1,stop = datasize)),ode_data[4])
-plot!(Array(range(1,stop = datasize)),ode_data[5])
+ode_data=JLD.load("test/dummy_data/pitchfork.jld")["counts"]
 
 dudt = Chain(Dense(1,15,tanh),
        Dense(15,15,tanh),
        Dense(15,1))
 ps = Flux.params(dudt)
 n_ode = x->neural_ode(dudt, x, tspan, Tsit5(), saveat=t, reltol=1e-7, abstol=1e-9)
-n_epochs = 200
+n_epochs = 20
 data1 = Iterators.repeated((), n_epochs)
-opt1 = Descent(0.0005)
-function kolmogorov_smirnov_distance(data1,data2)
-            ecdf_func_1 = StatsBase.ecdf(data1)
-            ecdf_func_2 = StatsBase.ecdf(data2)
-            max = maximum([data1;data2])
-            intervals = max/999
-            ecdf_vals_1 = Array{Float64,1}(undef, 1000)
-            for i in 1:1000
-                        ecdf_vals_1[i]=ecdf_func_1(intervals*(i-1))
-            end
-            ecdf_vals_2 = Array{Float64,1}(undef, 1000)
-            for i in 1:1000
-                        ecdf_vals_2[i]=ecdf_func_2(intervals*(i-1))
-            end
-            dist = maximum(abs.(ecdf_vals_1-ecdf_vals_2))
-            return dist
-end
-
-
-function KS_loss_fct()
-    sum = 0.0
-    counter = 0
-    for i in train_u0s
-        counter = counter+1
-        s = kolmogorov_smirnov_distance(ode_data[counter[1]], reshape(n_ode([i]),length(n_ode([i]))))
-        sum=sum+s
-    end
-    return sum
-end
-
+opt1 = Descent(0.005)
+ode_data[1]
+ode_data[1]
 function L2_loss_fct()
-    sum = 0.0
     counter = 0
+    sum = 0
     for i in train_u0s
         counter = counter+1
-        s = LinearAlgebra.norm(ode_data[counter[1]].-n_ode([i]))
-        sum=sum+s
+        sc_level = conv_ts_to_cnt_all_spec(n_ode([i]), Array(range(-3., step = 0.1 , stop = 3)))
+        xx = abs.(ode_data[counter] .- sc_level[1])
+        print(xx)
+        #print("\n sum\n", sum(xx,1))
+        sss = 0
+        for i in xx
+            sss = i+sss
+        end
+        sum=sum+sss
     end
     return sum
 end
+L2_loss_fct()
+
+
 cb1 = function ()
     println(Tracker.data(L2_loss_fct()))
 end
@@ -87,6 +52,8 @@ for i in test_u0s
 end
 
 
+
+print("\nDONE\n")
 plot(Array(range(1,stop = datasize)),preds[1])
 plot!(Array(range(1,stop = datasize)),preds[2])
 plot!(Array(range(1,stop = datasize)),preds[3])
