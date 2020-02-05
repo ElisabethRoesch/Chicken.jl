@@ -14,13 +14,11 @@ ode_data=JLD.load("test/dummy_data/pitchfork.jld")["counts"]
 dudt = Chain(Dense(1,15,tanh),
        Dense(15,15,tanh),
        Dense(15,1))
-ps = Flux.params(dudt)
-n_ode = x->neural_ode(dudt, x, tspan, Tsit5(), saveat=t, reltol=1e-7, abstol=1e-9)
+
+n_ode = NeuralODE(dudt,tspan,Tsit5(),saveat=t)
+ps = n_ode.p
 n_epochs = 20
-data1 = Iterators.repeated((), n_epochs)
 opt1 = Descent(0.005)
-ode_data[1]
-ode_data[1]
 function L2_loss_fct()
     counter = 0
     sum = 0
@@ -28,7 +26,7 @@ function L2_loss_fct()
         counter = counter+1
         sc_level = conv_ts_to_cnt_all_spec(n_ode([i]), Array(range(-3., step = 0.1 , stop = 3)))
         xx = abs.(ode_data[counter] .- sc_level[1])
-        print(xx)
+        #print(xx)
         #print("\n sum\n", sum(xx,1))
         sss = 0
         for i in xx
@@ -42,12 +40,12 @@ L2_loss_fct()
 
 
 cb1 = function ()
-    println(Tracker.data(L2_loss_fct()))
+    println(L2_loss_fct())
 end
 test_u0s = [-3.,-2.5,-2.,-1.5,-1.,-0.5,0.,0.5,1.,1.5,2.,2.5,-3.]
 preds = []
 for i in test_u0s
-    pred = Flux.data(n_ode([i]))
+    pred = n_ode([i])
     push!(preds, pred[1,:])
 end
 
@@ -68,7 +66,9 @@ plot!(Array(range(1,stop = datasize)),preds[11])
 plot!(Array(range(1,stop = datasize)),preds[12])
 plot!(Array(range(1,stop = datasize)),preds[13])
 # train n_ode with collocation method
-@time Flux.train!(L2_loss_fct, ps, data1, opt1, cb = cb1)
+#@time Flux.train!(L2_loss_fct, ps, data1, opt1, cb = cb1)
+DiffEqFlux.sciml_train!(L2_loss_fct, ps, ADAM(0.05), cb = cb1, maxiters = 100)
+
 
 derivs = []
 for i in test_u0s
