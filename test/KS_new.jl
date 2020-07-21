@@ -1,16 +1,23 @@
-function KS_loss_fct()
-    sum = 0.0
-    counter = 0
-    for i in train_u0s
-        counter = counter+1
-        s = kolmogorov_smirnov_distance(ode_data[counter[1]], reshape(n_ode([i]),length(n_ode([i]))))
-        sum=sum+s
-    end
-    return sum
+function kolmogorov_smirnov_distance(data1,data2)
+            ecdf_func_1 = StatsBase.ecdf(data1)
+            ecdf_func_2 = StatsBase.ecdf(data2)
+            max = maximum([data1;data2])
+            intervals = max/999
+            ecdf_vals_1 = Array{Float64,1}(undef, 1000)
+            for i in 1:1000
+                        ecdf_vals_1[i]=ecdf_func_1(intervals*(i-1))
+            end
+            ecdf_vals_2 = Array{Float64,1}(undef, 1000)
+            for i in 1:1000
+                        ecdf_vals_2[i]=ecdf_func_2(intervals*(i-1))
+            end
+            dist = maximum(abs.(ecdf_vals_1-ecdf_vals_2))
+            return dist
 end
 
 
-using DifferentialEquations, Flux, Optim, DiffEqFlux, DiffEqParamEstim, Plots
+
+using DifferentialEquations, Flux, Optim, DiffEqFlux, DiffEqParamEstim, Plots, StatsBase
 u0 = Float32[2.; 0.]
 datasize = 30
 tspan = (0.0f0,1.5f0)
@@ -33,21 +40,24 @@ end
 
 function loss_n_ode(p)
     pred = predict_n_ode(p)
-    loss = sum(abs2,ode_data .- pred)
+    loss = kolmogorov_smirnov_distance(ode_data, pred)
+    #loss = sum(abs2,ode_data .- pred)
     loss,pred
 end
 
+xx=[1 2.2 3;1 2 3.]
+ecdf(xx[1,:])
+xx[1,:]
 loss_n_ode(n_ode.p) # n_ode.p stores the initial parameters of the neural ODE
 
 
 cb = function (p,l,pred) #callback function to observe training
-  # display(l)
+  display(l)
   # pred = predict_n_ode(p)
   # # plot current prediction against data
-  # pl = scatter(t,ode_data[1,:],label="data")
-  # scatter!(pl,t,pred[1,:],label="prediction")
-  # display(plot(pl))
-  print("hi")
+  pl = scatter(t,ode_data[1,:],label="data")
+  scatter!(pl,t,pred[1,:],label="prediction")
+  display(plot(pl))
 end
 
 # Display the ODE with the initial parameter values.

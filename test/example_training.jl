@@ -16,10 +16,9 @@ dudt = Chain(Dense(1,15,tanh),
        Dense(15,1))
 
 n_ode = NeuralODE(dudt,tspan,Tsit5(),saveat=t)
-ps = n_ode.p
 n_epochs = 20
 opt1 = Descent(0.005)
-function L2_loss_fct()
+function L2_loss_fct(p)
     counter = 0
     sum = 0
     for i in train_u0s
@@ -39,8 +38,8 @@ end
 L2_loss_fct()
 
 
-cb1 = function ()
-    println(L2_loss_fct())
+cb1 = function (p)
+    println(L2_loss_fct(p))
 end
 test_u0s = [-3.,-2.5,-2.,-1.5,-1.,-0.5,0.,0.5,1.,1.5,2.,2.5,-3.]
 preds = []
@@ -67,7 +66,7 @@ plot!(Array(range(1,stop = datasize)),preds[12])
 plot!(Array(range(1,stop = datasize)),preds[13])
 # train n_ode with collocation method
 #@time Flux.train!(L2_loss_fct, ps, data1, opt1, cb = cb1)
-DiffEqFlux.sciml_train!(L2_loss_fct, ps, ADAM(0.05), cb = cb1, maxiters = 100)
+DiffEqFlux.sciml_train!(L2_loss_fct, n_ode.p, ADAM(0.05), cb = cb1, maxiters = 100)
 
 
 derivs = []
