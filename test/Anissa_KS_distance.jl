@@ -1,4 +1,5 @@
 using  StatsBase
+
 # Calculates the KS distance between two distributions (approximate)
 function kolmogorov_smirnov_distance(data1::Array{Float64},data2::Array{Float64})
             #Produce function which returns ecdf
